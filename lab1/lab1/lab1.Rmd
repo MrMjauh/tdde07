@@ -1,0 +1,85 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+### Assigment 1
+Preparations!
+```{r}
+s = 14
+f = 6
+a0 = 2
+b0 = 2
+```
+#### 1a
+We use the rbeta function to draw from the posterior distribution. We do it for different sample sizes for visualization later.
+```{r}
+d10 = rbeta(10,a0+s,b0+f)
+d100 = rbeta(100,a0+s,b0+f)
+d1000 = rbeta(1000,a0+s,b0+f)
+```
+Plot the result, as number of draws increases, the curve looks more like the posterior.
+```{r}
+x = 1:10/10
+y_max = max(max(d10),max(d100),max(d1000),4)+1
+plot(density(d10),ylim=c(0,y_max),xlim=c(0,1), col = "red",xlab="",main = sprintf("Draws = {10,100,1000}"))
+lines (density(d100),col = "blue")
+lines (density(d1000),col = "green")
+curve(dbeta(x,2+14,2+6),add = TRUE,col = "yellow")
+legend(0,y_max, legend=c("draws = 10", "draws = 100","draws = 1000","Beta"),
+       col=c("red", "blue","green","yellow"), lty=1:2, cex=0.8)
+```
+#### 1b
+Draw from the posterior using rbeta and just count the values that are less then the given threshold.
+```{r}
+draws = rbeta(10000,a0+s,b0+f)
+dprob = NROW(draws[draws < 0.4])/NROW(draws)
+bprob = pbeta(0.4,a0+s,b0+f)
+print(sprintf("Draw-prob = %f and Beta-prob = %f",dprob,bprob))
+```
+#### 1c
+Use the draw results from 1b and transform them into log-odds.
+```{r}
+log_odds = log(draws/(1-draws))
+plot(hist(log_odds,breaks=50))
+```
+
+### Assigment 2
+Preparations!
+```{r}
+u = 3.5
+income = c(14,25,45,25,30,33,19,50,34,67)
+tau2 = sum(log(income)-u)^2/length(income)
+```
+#### 2a
+The geoR::rinvchisq function simulates draws from scaled inverse chi-square distribution. From the assigment, we have two parameters n and $$\tau^2$$ represented as scale and df (degree of freedom) paramaters to the geoR::rinvchisq function. Generate draws and plot it with the density function (geoR::dinvchisq).
+```{r}
+draws = geoR::rinvchisq(10000,df=length(income),scale=tau2);
+
+# Offset not defined for 0
+x = 0:1000/1000+1/100000;
+h = hist(draws,breaks=50)
+d = geoR::dinvchisq(x,df=length(income),scale=tau2)
+ymax = max(h$density,d)+1;
+plot(h,ylim=c(0,ymax),freq=FALSE)
+lines(x,d)
+```
+#### 2b
+The build in pnorm function gives us the CDF that is normally distributed. Using the results from 2a, we can plot the values from the Gini coefficient.
+```{r}
+g = 2*pnorm(sqrt(draws)/sqrt(2))-1
+hist(g,breaks = 50)
+```
+#### 2c
+Take out 2.5% from each tail in the distribution and density function, plot them to see visually the difference.
+```{r}
+g = g[order(g)];
+g_start = floor(length(g)*0.025)
+g_stop = floor(length(g)*0.975)
+density_g = density(g)
+gd_start = floor(length(density_g$x)*0.025)
+gd_stop = floor(length(density_g$x)*0.975)
+plot(density_g$x[gd_start:gd_stop],density_g$y[gd_start:gd_stop],type="l")
+hist(g[g_start:g_stop],add=TRUE,freq=FALSE,breaks =30)
+```
+### Assigment 3
+
