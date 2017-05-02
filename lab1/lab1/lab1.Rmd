@@ -3,7 +3,7 @@ title: "R Notebook"
 output: html_notebook
 ---
 ### Assigment 1
-Preparations!
+Prepare the given data!
 ```{r}
 s = 14
 f = 6
@@ -11,22 +11,29 @@ a0 = 2
 b0 = 2
 ```
 #### 1a
-We use the rbeta function to draw from the posterior distribution. We do it for different sample sizes for visualization later.
+We use the rbeta function to draw from the posterior distribution. The calucations for true mean and deviations are taken from https://en.wikipedia.org/wiki/Beta_distribution.
 ```{r}
-d10 = rbeta(10,a0+s,b0+f)
-d100 = rbeta(100,a0+s,b0+f)
-d1000 = rbeta(1000,a0+s,b0+f)
+nr_of_draws = 1000
+
+post_means = c()
+post_devs = c()
+
+for (i in 1:nr_of_draws) {
+  post_means = c(post_means,mean(rbeta(i,a0+s,b0+f)))
+  post_devs = c(post_devs,sd(rbeta(i,a0+s,b0+f)))
+}
 ```
-Plot the result, as number of draws increases, the curve looks more like the posterior.
+Plot the mean as the number of draws increases. The red line shows the true mean
 ```{r}
-x = 1:10/10
-y_max = max(max(d10),max(d100),max(d1000),4)+1
-plot(density(d10),ylim=c(0,y_max),xlim=c(0,1), col = "red",xlab="",main = sprintf("Draws = {10,100,1000}"))
-lines (density(d100),col = "blue")
-lines (density(d1000),col = "green")
-curve(dbeta(x,2+14,2+6),add = TRUE,col = "yellow")
-legend(0,y_max, legend=c("draws = 10", "draws = 100","draws = 1000","Beta"),
-       col=c("red", "blue","green","yellow"), lty=1:2, cex=0.8)
+true_mean = (a0+s)/(a0+s+b0+f)
+plot(1:nr_of_draws,post_means,type="l")
+abline(h=true_mean,col="red")
+```
+Plot the deviation also as the number of draws increases. Red line represents the true deviation.
+```{r}
+true_var = (a0+s)*(b0+f)/((a0+s+b0+f)^2*(a0+s+b0+f+1))
+plot(1:nr_of_draws,post_devs,type="l")
+abline(h=sqrt(true_var),col="red")
 ```
 #### 1b
 Draw from the posterior using rbeta and just count the values that are less then the given threshold.
@@ -40,7 +47,7 @@ print(sprintf("Draw-prob = %f and Beta-prob = %f",dprob,bprob))
 Use the draw results from 1b and transform them into log-odds.
 ```{r}
 log_odds = log(draws/(1-draws))
-plot(hist(log_odds,breaks=50))
+hist(log_odds,breaks=50)
 ```
 
 ### Assigment 2
@@ -51,20 +58,20 @@ income = c(14,25,45,25,30,33,19,50,34,67)
 tau2 = sum(log(income)-u)^2/length(income)
 ```
 #### 2a
-The geoR::rinvchisq function simulates draws from scaled inverse chi-square distribution. From the assigment, we have two parameters n and $$\tau^2$$ represented as scale and df (degree of freedom) paramaters to the geoR::rinvchisq function. Generate draws and plot it with the density function (geoR::dinvchisq).
+The geoR::rinvchisq function simulates draws from scaled inverse chi-square distribution. From the assigment, we have two parameters n and $\tau^2$ represented as scale and df (degree of freedom) paramaters to the geoR::rinvchisq function. Generate draws and plot it with the density function (geoR::dinvchisq). The blue line represent the true distribution.
 ```{r}
 draws = geoR::rinvchisq(10000,df=length(income),scale=tau2);
 
 # Offset not defined for 0
 x = 0:1000/1000+1/100000;
-h = hist(draws,breaks=50)
+h = hist(draws,breaks=50,plot=FALSE)
 d = geoR::dinvchisq(x,df=length(income),scale=tau2)
 ymax = max(h$density,d)+1;
 plot(h,ylim=c(0,ymax),freq=FALSE)
-lines(x,d)
+lines(x,d,col="blue")
 ```
 #### 2b
-The build in pnorm function gives us the CDF that is normally distributed. Using the results from 2a, we can plot the values from the Gini coefficient.
+The built in pnorm function gives us the CDF that is normally distributed. Using the results from 2a, we can plot the values from the Gini coefficient.
 ```{r}
 g = 2*pnorm(sqrt(draws)/sqrt(2))-1
 hist(g,breaks = 50)
@@ -82,4 +89,32 @@ plot(density_g$x[gd_start:gd_stop],density_g$y[gd_start:gd_stop],type="l")
 hist(g[g_start:g_stop],add=TRUE,freq=FALSE,breaks =30)
 ```
 ### Assigment 3
+The data points is following a von Mises distribution, the likelihood function is given by:
+$$ p(y \mid \kappa, \mu) =  \frac{exp[\kappa*cos(y-\mu])}{2\pi I_0(\kappa)}$$
+Where $I_0$ is the Bessel function. The prior is following an exponential distribution given by $f(\kappa;\lambda) = \lambda e^{-\lambda \kappa}$ when $x \geq 0$.
+Given that the data points are i.i.d, the following posterior can be derived for n osbervations and $x \geq 0$, excluding the scaling parameter.
 
+$$ p(k \mid y, \mu) \propto (\prod_{i=1}^{n}{p(y_n \mid \kappa, \mu))*f(\kappa;\lambda)
+}$$
+```{r}
+obs = c(-2.44,2.14,2.54,1.83,2.02,2.33,-2.79,2.23,2.07,2.02)
+lambda = 1
+mu = 2.39
+von_mises_prob = function(kappa,y,mu) {return(exp(kappa*cos(y-mu))/(2*pi*besselI(kappa,0)))};
+```
+#### 3a
+```{r}
+grid_spacing = 0.1;
+grid_max = 10;
+kappas = seq(0,grid_max,by=grid_spacing)
+posteriors = c()
+for (i in 1:length(kappas)) {
+    posteriors = c(posteriors,prod(exp(kappas[i]*cos(y-mu))/(2*pi*besselI(kappas[i],0)))*dexp(kappas[i],rate=lambda))
+}
+plot(kappas,posteriors/sum(posteriors),type="l")
+```
+#### 3b
+```{r}
+kp_max = kappas[which.max(posteriors)]
+print(sprintf("kappa = %f",kp_max))
+```
